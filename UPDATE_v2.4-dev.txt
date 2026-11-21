@@ -1,0 +1,11 @@
+ClearYourTV 2.4-dev — Updated TV Banner
+
+- Replaced the Android TV / Google TV Leanback banner with the latest user-supplied
+  16:9 artwork (1536x864 master).
+- Updated Android banner resources for nodpi, xhdpi and xxhdpi.
+- Kept the square ClearYourTV launcher icon as the primary app icon.
+- AndroidManifest continues to reference @drawable/banner.
+- Preserved a high-resolution master copy in assets/ClearYourTV_banner_master.jpg.
+
+Build note: this is a source archive. APK compilation and device testing still
+require Android SDK/Gradle and a compatible Android TV device.

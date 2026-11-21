@@ -1,0 +1,4 @@
+ClearYourTV v0.2
+
+- Prepared Android TV launcher base
+- Added foundation for remote-first interface

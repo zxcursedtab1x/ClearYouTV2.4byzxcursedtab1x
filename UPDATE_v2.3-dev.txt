@@ -1,0 +1,10 @@
+ClearYourTV 2.3-dev — Main Brand Icon
+
+- Updated the app's primary launcher icon from the newly supplied 1536x1536 artwork.
+- Regenerated all Android launcher density assets: mdpi, hdpi, xhdpi, xxhdpi and xxxhdpi.
+- Added full-resolution and 512px brand artwork resources for in-app use.
+- Added the ClearYourTV logo to the Settings navigation panel.
+- Kept the previously supplied 16:9 Android TV banner unchanged.
+- Updated version metadata to 2.3-dev.
+
+Build note: APK compilation and device testing still require Android SDK/Gradle and a target TV.

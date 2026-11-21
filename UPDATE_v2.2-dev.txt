@@ -1,0 +1,14 @@
+ClearYourTV 2.2-dev — Branding update
+
+Visual assets supplied by the project owner are now integrated:
+- Square artwork is the Android application / launcher icon.
+- Wide 16:9 artwork with the text “Чистый телевизор — без рекламы!” is the
+  Android TV / Leanback launcher banner.
+- Density-specific icon and banner resources have been generated.
+
+The AndroidManifest already points to @mipmap/ic_launcher and @drawable/banner;
+those resource names now resolve to the new ClearYourTV artwork.
+
+Version: 2.2-dev (versionCode 9).
+Build note: source archive only; APK compilation still requires Android SDK
+and Gradle in an Android development environment.
