@@ -1006,7 +1006,7 @@ class MainActivity : Activity() {
         val adapter = AppsAdapter { visibleApps }
         val search = EditText(this).apply {
             hint = "Найти приложение…"
-            singleLine = true
+            setSingleLine(true)
             textSize = 16f
             setTextColor(Color.WHITE)
             setHintTextColor(Color.argb(150, 255, 255, 255))
