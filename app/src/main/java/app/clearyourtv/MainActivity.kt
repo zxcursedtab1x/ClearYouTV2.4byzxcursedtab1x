@@ -370,13 +370,13 @@ class MainActivity : Activity() {
 
     private fun effectiveDock(): List<App> {
         val saved = prefs.dock
-        if (saved != null) return saved.mapNotNull { p -> apps.firstOrNull { it.pkg == p } }
+        if (saved != null) return saved.mapNotNull { p -> apps.firstOrNull { it.pkg == p && it.intent != null } }
         val preferred = listOf(
             "com.google.android.youtube", "com.netflix", "ru.kinopoisk", "ru.more", "ru.ivi",
             "com.wink", "ru.rutube", "tv.okko", "com.amazon"
         )
-        val first = preferred.mapNotNull { p -> apps.firstOrNull { it.pkg.startsWith(p) } }
-        return (first + apps.filter { it !in first }).take(6)
+        val first = preferred.mapNotNull { p -> apps.firstOrNull { it.pkg.startsWith(p) && it.intent != null } }
+        return (first + apps.filter { it.intent != null && it !in first }).take(6)
     }
 
     fun dockPackages(): List<String> = effectiveDock().map { it.pkg }
@@ -529,6 +529,10 @@ class MainActivity : Activity() {
     }
 
     private fun dockToggle(a: App, refocus: Boolean) {
+        if (a.intent == null) {
+            toast("Это приложение нельзя добавить в Dock")
+            return
+        }
         val inDock = a.pkg in dockPackages()
         if (!inDock && dockPackages().size >= 7) {
             toast("Dock заполнен: максимум 7 приложений")
@@ -683,17 +687,26 @@ class MainActivity : Activity() {
     // ───────────────────────── запуск и полка ─────────────────────────
 
     fun launch(a: App, fromShelf: Boolean = false) {
-        if (runCatching { startActivity(a.intent) }.isSuccess) {
+        val intent = a.intent
+        if (intent == null) {
+            val details = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${a.pkg}"))
+            runCatching { startActivity(details) }
+                .onFailure { toast("Не удалось открыть сведения о приложении") }
+            return
+        }
+
+        if (runCatching { startActivity(intent) }.isSuccess) {
             prefs.recent = (listOf(a.pkg) + prefs.recent.filter { it != a.pkg }).take(8)
             launchedFromShelf = fromShelf
         }
     }
 
     private fun buildShelf() {
+        val launchableApps = apps.filter { it.intent != null }
         val order = if (prefs.showRecent) {
-            val rec = prefs.recent.mapNotNull { p -> apps.firstOrNull { it.pkg == p } }
-            rec + apps.filter { it !in rec }
-        } else apps
+            val rec = prefs.recent.mapNotNull { p -> launchableApps.firstOrNull { it.pkg == p } }
+            rec + launchableApps.filter { it !in rec }
+        } else launchableApps
         val w = cardW()
         val key = w.toString() + ":" + order.joinToString(",") { it.pkg }
         if (key == shelfKey) return
@@ -1093,6 +1106,10 @@ class MainActivity : Activity() {
             setOnItemClickListener { _, _, p, _ -> visibleApps.getOrNull(p)?.let { launch(it) } }
             setOnItemLongClickListener { _, _, p, _ ->
                 val a = visibleApps.getOrNull(p) ?: return@setOnItemLongClickListener true
+                if (a.intent == null) {
+                    Toast.makeText(this@MainActivity, "Это приложение нельзя добавить в Dock", Toast.LENGTH_SHORT).show()
+                    return@setOnItemLongClickListener true
+                }
                 val had = a.pkg in dockPackages()
                 toggleDock(a.pkg)
                 Toast.makeText(this@MainActivity, if (had) "Убрано из Dock" else "Добавлено в Dock", Toast.LENGTH_SHORT).show()
@@ -1123,10 +1140,21 @@ class MainActivity : Activity() {
                     gravity = Gravity.CENTER
                     setPadding(0, dp(6), 0, 0)
                 })
+                addView(label(10f, Color.LTGRAY).apply {
+                    maxLines = 1
+                    gravity = Gravity.CENTER
+                    setPadding(0, dp(3), 0, 0)
+                })
             }
             val a = source()[p]
             fillThumb(v.getChildAt(0) as ImageView, a)
             (v.getChildAt(1) as TextView).text = a.label
+            (v.getChildAt(2) as TextView).text = when {
+                a.intent == null && a.isSystem -> "Системное · Нет запуска"
+                a.intent == null -> "Нет кнопки запуска"
+                a.isSystem -> "Системное приложение"
+                else -> ""
+            }
             return v
         }
     }

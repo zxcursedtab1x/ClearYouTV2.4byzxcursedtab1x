@@ -2,6 +2,7 @@ package app.clearyourtv
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -11,10 +12,11 @@ import android.graphics.drawable.Drawable
 class App(
     val label: String,
     val pkg: String,
-    val intent: Intent,
+    val intent: Intent?,
     val icon: Drawable,
     val banner: Drawable?,
-    val accent: Int = 0
+    val accent: Int = 0,
+    val isSystem: Boolean = false
 )
 
 fun dominantColor(d: Drawable?): Int {
@@ -67,33 +69,43 @@ fun loadApps(ctx: Context): List<App> {
         pm.getInstalledApplications(PackageManager.GET_META_DATA)
             .asSequence()
             .filter { it.packageName != ctx.packageName }
-            .mapNotNull { info ->
+            .filter { info ->
+                (info.flags and ApplicationInfo.FLAG_INSTALLED) != 0
+            }
+            .map { info ->
                 val pkg = info.packageName
 
                 val intent = runCatching {
                     pm.getLeanbackLaunchIntentForPackage(pkg)
                         ?: pm.getLaunchIntentForPackage(pkg)
-                }.getOrNull() ?: return@mapNotNull null
+                }.getOrNull()
 
                 val icon = runCatching {
                     info.loadIcon(pm)
-                }.getOrNull() ?: return@mapNotNull null
+                }.getOrElse {
+                    pm.defaultActivityIcon
+                }
 
                 val label = runCatching {
                     info.loadLabel(pm).toString()
-                }.getOrDefault(pkg)
+                }.getOrDefault(pkg).ifBlank { pkg }
 
                 val banner = runCatching {
                     info.loadBanner(pm)
                 }.getOrNull()
 
+                val isSystem =
+                    (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                    (info.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+
                 App(
-                    label,
-                    pkg,
-                    intent,
-                    icon,
-                    banner,
-                    dominantColor(banner ?: icon)
+                    label = label,
+                    pkg = pkg,
+                    intent = intent,
+                    icon = icon,
+                    banner = banner,
+                    accent = dominantColor(banner ?: icon),
+                    isSystem = isSystem
                 )
             }
             .sortedBy { it.label.lowercase() }
