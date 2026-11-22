@@ -2,6 +2,10 @@ package app.clearyourtv
 
 import android.graphics.Color
 import android.graphics.Typeface
+import android.content.Intent
+import android.net.Uri
+import android.net.VpnService
+import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -23,12 +27,14 @@ class SettingsView(private val act: MainActivity, start: Int) {
 
     private val names = listOf(
         "Вид и сцены", "Часы", "Погода", "Приложения", "Панель и Dock",
-        "Защита", "Лаунчер и система", "Устройство и Smart Cleaner", "О приложении"
+        "Защита", "Лаунчер и система", "Устройство и Smart Cleaner", "О приложении", "Разрешения"
     )
     private val subs = listOf(
         "Пейзажи, живой фон и эффекты", "Время, дата и приветствие", "Прогноз на главном экране",
         "Что показывать в Dock (OK — добавить или убрать)", "Размер, прозрачность, недавние",
-        "Реклама, трекеры и DNS", "Главный экран, затемнение и сброс", "Профиль ТВ, диагностика и безопасная оптимизация", "О ClearYourTV"
+        "Реклама, трекеры и DNS", "Главный экран, затемнение и сброс",
+        "Профиль ТВ, диагностика и безопасная оптимизация", "О ClearYourTV",
+        "Доступы и системные подтверждения"
     )
     private var resetArmed = false
 
@@ -278,25 +284,75 @@ class SettingsView(private val act: MainActivity, start: Int) {
                 info("Вернуть стандартный лаунчер: Настройки ТВ → Приложения → По умолчанию → Главный экран.")
             }
             7 -> {
-                add(row("Профиль устройства", p.deviceProfile.ifBlank { DeviceSetup.detected(act) }) {
+                add(row("Профиль устройства", p.deviceProfile.ifBlank { "Не выбран" }) {
                     DeviceSetup.showWizard(act, p) { show(7, 0) }
                 })
                 add(row("Запустить диагностику и Smart Cleaner", "Анализ") { DeviceSetup.showDiagnostics(act) })
-                info("Профиль помогает подобрать доступные функции. Определение модели и ОС не гарантирует, что производитель разрешает замену системного HOME.")
+                info("Выбери платформу вручную. ClearYourTV не определяет её автоматически.")
                 info("Smart Cleaner работает безопасно: показывает характеристики и рекомендации. Не удаляет системные приложения, службы, драйверы или прошивку.")
-                info("Tizen, webOS и VIDAA не поддерживают обычные Android APK как системный Launcher — для них нужна отдельная версия.")
+                info("Доступность функций зависит от модели телевизора, версии Android и ограничений производителя.")
             }
             8 -> listOf(
                 "ClearYourTV · 2.3-dev",
                 "Погода: Open-Meteo · CC BY 4.0",
                 "В самом лаунчере нет рекламы и аналитики",
                 "Списки блокировки: AdGuard, StevenBlack (при обновлении)"
-            ).forEach { s ->
+            ).forEach { item ->
                 add(act.label(15f).apply {
-                    text = s
+                    text = item
                     setPadding(act.dp(16), act.dp(14), act.dp(16), act.dp(14))
                     background = roundRect(act.dp(12).toFloat(), Color.argb(30, 255, 255, 255))
                 })
+            }
+            9 -> {
+                add(row("Главный экран (HOME)", if (act.isDefaultHome()) "Выбран" else "Не выбран") {
+                    act.requestDefaultHome()
+                    show(9, 0)
+                })
+
+                val canInstall = Build.VERSION.SDK_INT < 26 ||
+                    act.packageManager.canRequestPackageInstalls()
+                add(row("Установка APK", if (canInstall) "Разрешено" else "Нужно разрешить") {
+                    if (Build.VERSION.SDK_INT >= 26 && !act.packageManager.canRequestPackageInstalls()) {
+                        try {
+                            act.startActivityForResult(Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:${act.packageName}")
+                            ), 75)
+                        } catch (e: Exception) {
+                            Toast.makeText(act, "Не удалось открыть настройки установки APK", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(act, "Установка APK уже разрешена", Toast.LENGTH_SHORT).show()
+                    }
+                })
+
+                val vpnAllowed = try { VpnService.prepare(act) == null } catch (e: Exception) { false }
+                add(row("VPN для блокировки рекламы", if (vpnAllowed) "Подтверждено" else "Нужно подтвердить") {
+                    act.setAdblock(true)
+                    show(9, 2)
+                })
+
+                val dnsStatus = when {
+                    !PrivateDns.supported() -> "Нужен Android 9+"
+                    !PrivateDns.canWrite(act) -> "Нужно ADB-разрешение"
+                    PrivateDns.isOn(act) -> "Включён"
+                    else -> "Выключен"
+                }
+                add(row("Системный DNS (AdGuard)", dnsStatus) {
+                    if (PrivateDns.supported() && PrivateDns.canWrite(act)) {
+                        PrivateDns.set(act, !PrivateDns.isOn(act))
+                        show(9, 3)
+                    }
+                })
+
+                if (PrivateDns.supported() && !PrivateDns.canWrite(act)) {
+                    info("Для системного DNS один раз выдайте разрешение по ADB на своём ТВ:\nadb shell pm grant app.clearyourtv android.permission.WRITE_SECURE_SETTINGS")
+                }
+                info("Интернет: разрешение из манифеста, отдельное окно не требуется.")
+                info("Список приложений: доступ объявлен в манифесте; отдельного системного запроса нет.")
+                info("Выбор APK и обоев открывается через системный файловый диалог. Широкий доступ ко всем файлам не запрашивается.")
+                info("HOME, установка APK и VPN подтверждаются отдельными системными экранами. Поддержка зависит от прошивки ТВ.")
             }
             else -> {}
         }

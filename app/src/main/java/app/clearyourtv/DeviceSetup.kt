@@ -12,22 +12,10 @@ import android.app.ActivityManager
 import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
-import java.util.Locale
 
 /** Device-aware onboarding and read-only diagnostics. Never removes system packages. */
 object DeviceSetup {
-    val profiles = listOf("Автоопределение", "Android TV", "Google TV", "Сбер ТВ / Салют ТВ", "YaOS (Яндекс ТВ)", "Другая Android TV-прошивка", "Samsung Tizen", "LG webOS", "Hisense VIDAA")
-
-    fun detected(ctx: Context): String {
-        val m = (Build.MANUFACTURER + " " + Build.BRAND + " " + Build.MODEL + " " + Build.DISPLAY).lowercase(Locale.ROOT)
-        return when {
-            m.contains("sber") || m.contains("salut") -> "Сбер ТВ / Салют ТВ"
-            m.contains("yandex") || m.contains("yaos") -> "YaOS (Яндекс ТВ)"
-            m.contains("google tv") -> "Google TV"
-            m.contains("android tv") || ctx.packageManager.hasSystemFeature("android.software.leanback") -> "Android TV"
-            else -> "Другая Android TV-прошивка"
-        }
-    }
+    val profiles = listOf("Android TV", "Google TV", "Сбер ТВ / Салют ТВ", "YaOS (Яндекс ТВ)")
 
     fun report(ctx: Context): String {
         val pm = ctx.packageManager
@@ -61,7 +49,7 @@ object DeviceSetup {
         val leanback = pm.hasSystemFeature("android.software.leanback")
         val tvInput = pm.hasSystemFeature("android.software.live_tv")
         return buildString {
-            appendLine("Профиль: ${detected(ctx)}")
+            appendLine("Профиль ClearYourTV: выбирается вручную в настройках")
             appendLine("Производитель: ${Build.MANUFACTURER}")
             appendLine("Модель: ${Build.MODEL}")
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
@@ -81,37 +69,22 @@ object DeviceSetup {
     }
 
     fun showWizard(activity: Activity, prefs: Prefs, onDone: () -> Unit) {
-        val detected = detected(activity)
-        val current = prefs.deviceProfile.ifBlank { "Автоопределение" }
-        val selected = profiles.indexOf(current).let { if (it >= 0) it else 0 }
+        val current = profiles.indexOf(prefs.deviceProfile).let { if (it >= 0) it else -1 }
         AlertDialog.Builder(activity)
-            .setTitle("Добро пожаловать в ClearYourTV")
-            .setMessage("Определённое устройство: $detected\n\nВыберите платформу. ClearYourTV проверит возможности прошивки и подберёт совместимые функции. Выбор можно изменить позже.")
-            .setSingleChoiceItems(profiles.toTypedArray(), selected) { dialog, which ->
-                val value = profiles[which]
-                prefs.deviceProfile = if (value == profiles[0]) detected else value
+            .setTitle("Выбор платформы ClearYourTV")
+            .setMessage("Выберите платформу вашего телевизора. Автоматического определения нет.")
+            .setSingleChoiceItems(profiles.toTypedArray(), current) { dialog, which ->
+                prefs.deviceProfile = profiles[which]
                 prefs.setupCompleted = true
                 dialog.dismiss()
                 showResult(activity, prefs.deviceProfile)
                 onDone()
             }
-            .setOnCancelListener {
-                if (!prefs.setupCompleted) {
-                    prefs.deviceProfile = detected
-                    prefs.setupCompleted = true
-                    onDone()
-                }
-            }
             .show()
     }
 
     fun showResult(activity: Activity, profile: String) {
-        val androidBased = profile !in listOf("Samsung Tizen", "LG webOS", "Hisense VIDAA")
-        val message = if (androidBased) {
-            "Профиль сохранён: $profile\n\nБудут включены только функции, доступные этой Android-прошивке. Системные приложения, драйверы и службы производителя автоматически удаляться не будут. Перед оптимизацией ClearYourTV покажет отчёт и запросит подтверждение."
-        } else {
-            "Профиль сохранён: $profile\n\nОбычный Android APK не может стать системным Launcher на этой платформе. Для неё нужна отдельная версия приложения из магазина производителя."
-        }
+        val message = "Профиль сохранён: $profile\n\nClearYourTV будет использовать этот профиль для подбора совместимых функций. Фактические возможности зависят от модели телевизора и версии прошивки. Системные приложения, драйверы и службы автоматически удаляться не будут."
         AlertDialog.Builder(activity).setTitle("Настройка устройства").setMessage(message).setPositiveButton("Продолжить", null).show()
     }
 
