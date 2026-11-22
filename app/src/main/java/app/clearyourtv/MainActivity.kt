@@ -708,7 +708,7 @@ class MainActivity : Activity() {
             rec + launchableApps.filter { it !in rec }
         } else launchableApps
         val w = cardW()
-        val key = w.toString() + ":" + order.joinToString(",") { it.pkg }
+        val key = w.toString() + ":tv-center:" + order.joinToString(",") { it.pkg }
         if (key == shelfKey) return
         shelfKey = key
         shelfRow.removeAllViews()
@@ -716,6 +716,17 @@ class MainActivity : Activity() {
         for (a in order) {
             shelfRow.addView(shelfItem(w, h, a.label, thumb(a), { launch(a, true) }, { dockToggle(a, false) }, a.accent))
         }
+
+        val tvTile = TextView(this).apply {
+            text = "TV"
+            textSize = 36f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = glassBg(16)
+        }
+        shelfRow.addView(
+            shelfItem(w, h, "Телевидение", tvTile, { openTvCenter() }, null, 0xFF62B5FF.toInt())
+        )
     }
 
     private fun thumb(a: App): ImageView = roundedImage().also { fillThumb(it, a) }
@@ -774,6 +785,11 @@ class MainActivity : Activity() {
         showOverlay(c.view, c.focus)
         cleaner = c
         backHandler = { c.onBack() }
+    }
+
+    fun openTvCenter() {
+        val tv = TvCenter(this)
+        showOverlay(tv.view, tv.focus)
     }
 
     fun openSettings(section: Int) {
