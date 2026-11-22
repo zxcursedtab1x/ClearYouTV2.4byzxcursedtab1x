@@ -64,6 +64,7 @@ class MainActivity : Activity() {
 
     private var weatherText: String? = null
     private var weatherCity = -1
+    private var pendingApkUri: Uri? = null
     private var overlay: View? = null
     private var opener: View? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -513,6 +514,14 @@ class MainActivity : Activity() {
         }
         dock.addView(dockIcon(s, "Все приложения", more, 0, { openAllApps() }, null))
 
+        val apkIcon = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_add)
+            setColorFilter(Color.WHITE)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            background = tileBg(r)
+        }
+        dock.addView(dockIcon(s, "Установить APK", apkIcon, 0, { pickApk() }, null))
+
         // Полка стоит ровно над капсулой Dock
         val lp = shelfBox.layoutParams as FrameLayout.LayoutParams
         lp.bottomMargin = dp(24 + s + 24 + 28)
@@ -788,6 +797,47 @@ class MainActivity : Activity() {
         handler.postDelayed({ AdBlockVpnService.start(this) }, 500)
     }
 
+    private fun pickApk() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/vnd.android.package-archive"
+        }
+        try {
+            startActivityForResult(intent, 73)
+        } catch (e: Exception) {
+            toast("Не удалось открыть выбор файлов")
+        }
+    }
+
+    private fun installSelectedApk(uri: Uri) {
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            pendingApkUri = uri
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName")
+            )
+            try {
+                startActivityForResult(intent, 74)
+            } catch (e: Exception) {
+                toast("Не удалось открыть настройки установки")
+            }
+            return
+        }
+        launchApkInstaller(uri)
+    }
+
+    private fun launchApkInstaller(uri: Uri) {
+        try {
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            toast("Не удалось запустить установщик APK")
+        }
+    }
+
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
@@ -797,6 +847,16 @@ class MainActivity : Activity() {
             } else {
                 prefs.adblock = false
                 toast("Разрешение VPN не выдано — защита выключена")
+            }
+        } else if (req == 73 && res == RESULT_OK) {
+            data?.data?.let { installSelectedApk(it) }
+        } else if (req == 74) {
+            val uri = pendingApkUri
+            pendingApkUri = null
+            if (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()) {
+                uri?.let { launchApkInstaller(it) }
+            } else {
+                toast("Разрешение на установку APK не выдано")
             }
         }
         updateTexts()
